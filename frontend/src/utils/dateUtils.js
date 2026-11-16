@@ -52,6 +52,19 @@ export function getMinimumBookingDate(isStaffManual = false) {
   return isStaffManual ? getTodayCivilDate() : getTomorrowCivilDate();
 }
 
+export function getMaximumBookingDate() {
+  const todayStr = getTodayCivilDate();
+  const [year, month, day] = todayStr.split("-").map(Number);
+
+  const dateObj = new Date(Date.UTC(year, month + 1, day));
+  dateObj.setUTCDate(dateObj.getUTCDate());
+
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(dateObj.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /**
  * Formatea una fecha civil YYYY-MM-DD a texto legible en español
  * (ejemplo: "lunes, 28 de septiembre de 2026") sin desfase horario.

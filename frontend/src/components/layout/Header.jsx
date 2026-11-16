@@ -31,7 +31,7 @@ export default function Header({ currentView, setCurrentView }) {
             className="flex items-center space-x-4 cursor-pointer group"
             onClick={handleClientViewClick}
           >
-            <div className="w-16 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-1 overflow-hidden">
+            <div className="w-16 h-12 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-1 overflow-hidden">
               <img
                 src={logoImg}
                 alt="Logo Taller Bautista"

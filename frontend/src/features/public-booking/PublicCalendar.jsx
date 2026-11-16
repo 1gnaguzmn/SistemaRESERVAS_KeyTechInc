@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { API_ROUTES as R } from "../../services/api/routes";
-import { getTomorrowCivilDate, formatDateLongEs } from "../../utils/dateUtils";
+import { getTomorrowCivilDate, formatDateLongEs, getMaximumBookingDate } from "../../utils/dateUtils";
 import RequestState from "../../components/ui/RequestState";
 export default function PublicCalendar({ onOpenWhatsAppModal }) {
   const [date, setDate] = useState(getTomorrowCivilDate);
@@ -59,6 +59,7 @@ export default function PublicCalendar({ onOpenWhatsAppModal }) {
             type="date"
             value={date}
             min={getTomorrowCivilDate()}
+            max={getMaximumBookingDate()}
             onChange={(e) => setDate(e.target.value)}
             className="block border p-3 rounded-xl mt-2"
           />
