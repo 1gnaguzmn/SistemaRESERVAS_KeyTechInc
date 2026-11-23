@@ -11,9 +11,51 @@ export default function AppointmentsTable({
 }) {
   const set = (key) => (e) =>
     setFilters((f) => ({ ...f, [key]: e.target.value, offset: 0 }));
+  const setView = (e) => {
+    const vista = e.target.value;
+    setFilters((f) => ({
+      ...f,
+      vista,
+      orden: vista === "HISTORIAL" ? "desc" : "asc",
+      offset: 0,
+    }));
+  };
+  const total = pagination?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / filters.limit));
+  const page = Math.floor(filters.offset / filters.limit) + 1;
+  const goTo = (target) =>
+    setFilters((f) => ({
+      ...f,
+      offset: (Math.min(Math.max(1, target), totalPages) - 1) * f.limit,
+    }));
   return (
     <div className="bg-white rounded-3xl border shadow-soft overflow-hidden">
-      <div className="p-5 bg-gray-50 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="p-5 bg-gray-50 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <select
+          aria-label="Vista"
+          className={control}
+          value={filters.vista}
+          onChange={setView}
+          disabled={Boolean(filters.fecha)}
+          title={
+            filters.fecha
+              ? "Con una fecha seleccionada se muestran solo las citas de ese día"
+              : undefined
+          }
+        >
+          <option value="PROXIMAS">Próximas citas (desde hoy)</option>
+          <option value="HISTORIAL">Historial (anteriores a hoy)</option>
+          <option value="TODAS">Todas las citas</option>
+        </select>
+        <select
+          aria-label="Orden"
+          className={control}
+          value={filters.orden}
+          onChange={set("orden")}
+        >
+          <option value="asc">Fecha y hora: más próxima primero</option>
+          <option value="desc">Fecha y hora: más lejana primero</option>
+        </select>
         <input
           aria-label="Buscar citas"
           className={control}
@@ -131,34 +173,71 @@ export default function AppointmentsTable({
           </tbody>
         </table>
       </div>
-      <div className="p-4 flex justify-between items-center gap-3 text-sm">
-        <span>{pagination?.total ?? 0} citas encontradas</span>
-        <div className="flex gap-4">
-          <button
-            disabled={busy || !filters.offset}
-            onClick={() =>
-              setFilters((f) => ({
-                ...f,
-                offset: Math.max(0, f.offset - f.limit),
-              }))
-            }
-          >
+      <div className="p-4 flex flex-wrap justify-between items-center gap-3 text-sm">
+        <div className="flex items-center gap-3">
+          <span>{total} citas encontradas</span>
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Por página
+            <select
+              aria-label="Citas por página"
+              className="px-2 py-1 border rounded-lg bg-white"
+              value={filters.limit}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  limit: Number(e.target.value),
+                  offset: 0,
+                }))
+              }
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <nav aria-label="Paginación" className="flex items-center gap-3">
+          <button disabled={busy || page <= 1} onClick={() => goTo(1)}>
+            « Primera
+          </button>
+          <button disabled={busy || page <= 1} onClick={() => goTo(page - 1)}>
             Anterior
           </button>
-          <span>Página {Math.floor(filters.offset / filters.limit) + 1}</span>
+          <span>
+            Página{" "}
+            <input
+              aria-label="Ir a página"
+              type="number"
+              min={1}
+              max={totalPages}
+              key={page}
+              defaultValue={page}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") goTo(Number(e.currentTarget.value));
+              }}
+              onBlur={(e) => {
+                if (Number(e.currentTarget.value) !== page)
+                  goTo(Number(e.currentTarget.value));
+              }}
+              className="w-16 px-2 py-1 border rounded-lg text-center"
+            />{" "}
+            de {totalPages}
+          </span>
           <button
-            disabled={
-              busy ||
-              !pagination ||
-              filters.offset + filters.limit >= pagination.total
-            }
-            onClick={() =>
-              setFilters((f) => ({ ...f, offset: f.offset + f.limit }))
-            }
+            disabled={busy || !pagination || page >= totalPages}
+            onClick={() => goTo(page + 1)}
           >
             Siguiente
           </button>
-        </div>
+          <button
+            disabled={busy || !pagination || page >= totalPages}
+            onClick={() => goTo(totalPages)}
+          >
+            Última »
+          </button>
+        </nav>
       </div>
     </div>
   );

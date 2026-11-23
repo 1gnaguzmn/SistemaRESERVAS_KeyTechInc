@@ -15,6 +15,7 @@ const empty = () => ({
   vehModel: "",
   vehType: "GENERAL",
   serviceCode: "",
+  serviceDetail: "",
   date: getTodayCivilDate(),
   timeSlot: "",
   comments: "",
@@ -56,7 +57,7 @@ export default function BookingForm({ isOpen, onClose, appointment }) {
       {label}
       <input
         className={`${inputClass} mt-1`}
-        value={form[key]}
+        value={form[key] ?? ""}
         onChange={set(key)}
         required
         {...options}
@@ -76,6 +77,9 @@ export default function BookingForm({ isOpen, onClose, appointment }) {
       setBusy(false);
     }
   };
+  const requiresDetail = services.some(
+    (s) => s.codigo === form.serviceCode && s.requiere_detalle,
+  );
   const hasCurrent =
     appointment?.date === form.date && appointment?.timeSlot === form.timeSlot;
   return (
@@ -114,8 +118,9 @@ export default function BookingForm({ isOpen, onClose, appointment }) {
                 <option value="PESADO">PESADO</option>
               </select>
             </label>
-            {field("Marca *", "vehBrand", {
+            {field("Marca", "vehBrand", {
               maxLength: 50,
+              required: false,
               placeholder: "Ej. Alfa Romeo",
             })}
             {field("Modelo *", "vehModel", {
@@ -142,6 +147,21 @@ export default function BookingForm({ isOpen, onClose, appointment }) {
               ))}
             </select>
           </label>
+          {requiresDetail && (
+            <label className="block text-xs font-bold text-gray-700">
+              Describe el servicio requerido *
+              <textarea
+                aria-label="Descripción del servicio"
+                className={`${inputClass} mt-1`}
+                rows={2}
+                maxLength={200}
+                required
+                placeholder="Ej. Revisión del aire acondicionado"
+                value={form.serviceDetail ?? ""}
+                onChange={set("serviceDetail")}
+              />
+            </label>
+          )}
           <div className="grid sm:grid-cols-2 gap-3">
             {field("Fecha *", "date", {
               type: "date",
@@ -205,6 +225,7 @@ export default function BookingForm({ isOpen, onClose, appointment }) {
                 busy ||
                 !form.timeSlot ||
                 !form.serviceCode ||
+                (requiresDetail && !form.serviceDetail?.trim()) ||
                 (!hasCurrent && (loading || Boolean(error)))
               }
               className="px-6 py-2.5 bg-bautista-red text-white rounded-xl font-bold text-sm disabled:opacity-50"
