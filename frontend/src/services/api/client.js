@@ -88,7 +88,11 @@ export async function apiDownload(route, options = {}) {
   try {
     response = await fetch(
       BASE_URL + route.path + (query.size ? "?" + query : ""),
-      { method: "GET", credentials: "same-origin" },
+      {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken },
+      },
     );
   } catch {
     throw new ApiError(

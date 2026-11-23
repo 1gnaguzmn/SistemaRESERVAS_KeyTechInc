@@ -1,5 +1,10 @@
 const express = require("express");
-const { requireAuth, requireRoles, login } = require("../middleware/session");
+const {
+  requireAuth,
+  requireRoles,
+  requireCsrf,
+  login,
+} = require("../middleware/session");
 const pool = require("../config/database");
 const services = require("../config/services");
 const reads = require("../services/agendaReadService");
@@ -100,16 +105,21 @@ router.delete(
 router.get("/auditoria", requireRoles(), async (req, res) =>
   res.json(await admin.logs(req.query)),
 );
-router.get("/auditoria/exportar", requireRoles(), async (req, res) => {
-  const { filename, csv } = await admin.exportLogs(req.query, req.user);
-  res
-    .set({
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    })
-    .send(csv);
-});
+router.get(
+  "/auditoria/exportar",
+  requireRoles(),
+  requireCsrf,
+  async (req, res) => {
+    const { filename, csv } = await admin.exportLogs(req.query, req.user);
+    res
+      .set({
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      })
+      .send(csv);
+  },
+);
 
 for (const [resource, Model] of [
   ["clientes", Cliente],
