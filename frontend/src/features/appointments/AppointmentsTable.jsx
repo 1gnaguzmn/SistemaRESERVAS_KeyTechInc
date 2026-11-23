@@ -43,18 +43,19 @@ export default function AppointmentsTable({
               : undefined
           }
         >
-          <option value="PROXIMAS">Próximas citas (desde hoy)</option>
-          <option value="HISTORIAL">Historial (anteriores a hoy)</option>
-          <option value="TODAS">Todas las citas</option>
+          <option value="PROXIMAS">Próximas citas</option>
+          <option value="HISTORIAL">Historial</option>
+          <option value="TODAS">Todas</option>
         </select>
         <select
           aria-label="Orden"
+          title="Orden por fecha y hora de la cita"
           className={control}
           value={filters.orden}
           onChange={set("orden")}
         >
-          <option value="asc">Fecha y hora: más próxima primero</option>
-          <option value="desc">Fecha y hora: más lejana primero</option>
+          <option value="asc">Ascendente</option>
+          <option value="desc">Descendente</option>
         </select>
         <input
           aria-label="Buscar citas"
