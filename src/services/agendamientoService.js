@@ -74,9 +74,11 @@ function vehicleInput(input) {
     v.invalid("Año no válido.");
   return {
     placa: v.plate(input.placa),
-    marca: v.string(input.marca, "marca", 50, false),
     modelo: v.string(input.modelo, "modelo", 50),
-    tipo: input.tipo ?? "GENERAL",
+    ...(input.marca !== undefined
+      ? { marca: v.string(input.marca, "marca", 50, false) }
+      : {}),
+    ...(input.tipo != null ? { tipo: input.tipo } : {}),
     ...(input.anio !== undefined ? { anio: input.anio } : {}),
     ...(input.color !== undefined
       ? { color: v.string(input.color, "color", 30, false) }

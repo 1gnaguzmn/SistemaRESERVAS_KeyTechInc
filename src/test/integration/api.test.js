@@ -526,6 +526,25 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
     await post("/api/citas/manuales", noModel).expect(400);
     noModel.vehiculo = { modelo: "Rio" };
     await post("/api/citas/manuales", noModel).expect(400);
+    const heavy = body(34, "16:00", "18:00");
+    heavy.cita.inicio = `${otherDate} 16:00:00`;
+    heavy.cita.fin = `${otherDate} 18:00:00`;
+    heavy.vehiculo = {
+      placa: "MIN34",
+      marca: "Hino",
+      modelo: "300",
+      tipo: "PESADO",
+    };
+    await post("/api/citas/manuales", heavy).expect(201);
+    const again = body(34, "08:00", "10:00");
+    again.cita.inicio = `${addDays(date, 11)} 08:00:00`;
+    again.cita.fin = `${addDays(date, 11)} 10:00:00`;
+    again.vehiculo = { placa: "MIN34", modelo: "300" };
+    await post("/api/citas/manuales", again).expect(201);
+    const [[heavyKept]] = await pool.execute(
+      "SELECT marca,tipo FROM vehiculo WHERE placa='MIN34'",
+    );
+    assert.deepEqual(heavyKept, { marca: "Hino", tipo: "PESADO" });
     const [[kept]] = await pool.execute(
       "SELECT marca,modelo FROM vehiculo WHERE placa='TEST1'",
     );
@@ -634,8 +653,14 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
     await admin.get("/api/auditoria").query({ desde: today() }).expect(400);
     await admin
       .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", csrf)
       .query({ desde: addDays(today(), -30), hasta: today() })
       .expect(400);
+    const forged = await admin
+      .get("/api/auditoria/exportar")
+      .query(range)
+      .expect(403);
+    assert.equal(forged.body.code, "INVALID_CSRF");
     const defaults = await admin.get("/api/auditoria").expect(200);
     assert.deepEqual(defaults.body.filtros, range);
     const page = await admin
@@ -647,10 +672,15 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
       .get("/api/auditoria")
       .query({ ...range, accion: "CREAR_CITA" })
       .expect(200);
-    await jefe.get("/api/auditoria/exportar").query(range).expect(403);
+    await jefe
+      .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", jefeCsrf)
+      .query(range)
+      .expect(403);
     await request(app).get("/api/auditoria/exportar").expect(401);
     const csv = await admin
       .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", csrf)
       .query({ ...range, accion: "CREAR_CITA" })
       .buffer(true)
       .parse((res, done) => {
