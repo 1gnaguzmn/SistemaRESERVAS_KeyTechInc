@@ -95,3 +95,68 @@ export function isDateInPast(dateStr) {
   const today = getTodayCivilDate();
   return dateStr < today;
 }
+
+/**
+ * Suma días a una fecha civil YYYY-MM-DD sin depender de la zona del navegador.
+ */
+export function addDaysCivil(dateStr, days) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const dateObj = new Date(Date.UTC(year, month - 1, day + days));
+  return dateObj.toISOString().slice(0, 10);
+}
+
+/** Primer y último día del mes calendario desplazado `months` meses. */
+export function calendarMonthRange(dateStr, months) {
+  const [year, month] = dateStr.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const last = new Date(Date.UTC(year, month + months, 0));
+  return {
+    desde: first.toISOString().slice(0, 10),
+    hasta: last.toISOString().slice(0, 10),
+  };
+}
+
+/** Días civiles entre dos fechas YYYY-MM-DD, contando ambos extremos. */
+export function countCivilDays(from, to) {
+  return (
+    Math.round(
+      (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+        86400000,
+    ) + 1
+  );
+}
+
+export const WORKSHOP_PERIODS = [
+  { value: "HOY", label: "Hoy" },
+  { value: "ULTIMOS_15", label: "Últimos 15 días" },
+  { value: "PROXIMOS_15", label: "Próximos 15 días" },
+  { value: "ULTIMO_MES", label: "Último mes" },
+  { value: "PROXIMO_MES", label: "Próximo mes" },
+  { value: "PERSONALIZADO", label: "Rango personalizado" },
+];
+
+/**
+ * Rango [desde, hasta] (ambos incluidos) para un período del tablero,
+ * calculado sobre la fecha civil de El Salvador.
+ */
+export function getPeriodRange(period, today = getTodayCivilDate()) {
+  switch (period) {
+    case "ULTIMOS_15":
+      return { desde: addDaysCivil(today, -14), hasta: today };
+    case "PROXIMOS_15":
+      return { desde: today, hasta: addDaysCivil(today, 14) };
+    case "ULTIMO_MES":
+      return calendarMonthRange(today, -1);
+    case "PROXIMO_MES":
+      return calendarMonthRange(today, 1);
+    default:
+      return { desde: today, hasta: today };
+  }
+}
+
+/** Formato corto dd/mm/aaaa para fechas civiles. */
+export function formatDateShort(dateStr) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}/${year}`;
+}

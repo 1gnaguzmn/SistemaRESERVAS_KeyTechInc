@@ -12,6 +12,7 @@ class Cita extends BaseModel {
     "origen",
     "creada_por",
     "servicio_codigo",
+    "servicio_detalle",
     "notas",
     "creado_en",
   ];
@@ -24,6 +25,7 @@ class Cita extends BaseModel {
     "origen",
     "creada_por",
     "servicio_codigo",
+    "servicio_detalle",
     "notas",
   ];
   static updateFields = [
@@ -32,6 +34,7 @@ class Cita extends BaseModel {
     "fin",
     "estado",
     "servicio_codigo",
+    "servicio_detalle",
     "notas",
   ];
   static generatedId = true;
@@ -54,6 +57,11 @@ class Cita extends BaseModel {
         data.notas ?? null,
       ],
     );
+    if (data.servicio_detalle)
+      await connection.execute(
+        "UPDATE cita SET servicio_detalle=? WHERE id_cita=?",
+        [data.servicio_detalle, id],
+      );
     return this.findById(id, connection);
   }
 

@@ -53,21 +53,21 @@ export function AgendaProvider({ children }) {
     (ui) =>
       mutate(
         R.CITAS_CREATE_MANUAL,
-        toBackendAppointmentPayload(ui),
+        toBackendAppointmentPayload(ui, services),
         {},
         "Cita registrada.",
       ),
-    [mutate],
+    [mutate, services],
   );
   const updateAppointment = useCallback(
     (id, ui) =>
       mutate(
         R.CITAS_UPDATE,
-        toBackendAppointmentPayload(ui),
+        toBackendAppointmentPayload(ui, services),
         { id },
         "Cita actualizada.",
       ),
-    [mutate],
+    [mutate, services],
   );
   const changeAppointmentStatus = useCallback(
     async (id, status, current) => {

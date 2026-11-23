@@ -1102,6 +1102,26 @@
           },
           {
             "in": "query",
+            "name": "desde",
+            "required": false,
+            "description": "Fecha civil inicial incluida (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasta",
+            "required": false,
+            "description": "Fecha civil final incluida (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
             "name": "turno",
             "required": false,
             "schema": {
@@ -1124,6 +1144,16 @@
                 "CANCELADA",
                 "CANCELADO"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "orden",
+            "required": false,
+            "description": "Orden por fecha/hora de inicio; por defecto asc.",
+            "schema": {
+              "enum": ["asc", "desc"],
+              "default": "asc"
             }
           },
           {
@@ -1293,12 +1323,18 @@
                       "DIAGNOSTICO_ESCANER",
                       "FRENOS_SUSPENSION",
                       "MECANICA_GENERAL",
-                      "ALINEACION_BALANCEO"
+                      "ALINEACION_BALANCEO",
+                      "OTROS"
                     ]
                   },
                   "notas": {
                     "type": ["string", "null"],
                     "maxLength": 10000
+                  },
+                  "servicio_detalle": {
+                    "type": ["string", "null"],
+                    "maxLength": 200,
+                    "description": "Obligatoria (no vacía) cuando servicio_codigo=OTROS; se guarda null para los demás servicios."
                   }
                 },
                 "required": ["placa", "inicio", "fin", "servicio_codigo"],
@@ -2150,6 +2186,26 @@
           },
           {
             "in": "query",
+            "name": "desde",
+            "required": false,
+            "description": "Fecha civil inicial incluida (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasta",
+            "required": false,
+            "description": "Fecha civil final incluida (YYYY-MM-DD).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
             "name": "turno",
             "required": false,
             "schema": {
@@ -2886,7 +2942,7 @@
     },
     "/auditoria": {
       "get": {
-        "summary": "Actividad inmutable del personal",
+        "summary": "Actividad inmutable del personal (máximo 30 días por consulta)",
         "tags": ["Administración"],
         "security": [
           {
@@ -2927,15 +2983,33 @@
                           "id_entidad": {
                             "type": "string"
                           },
-                          "detalle": {}
+                          "detalle": {},
+                          "rol": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
                     "pagination": {
                       "$ref": "#/components/schemas/Pagination"
+                    },
+                    "filtros": {
+                      "type": "object",
+                      "properties": {
+                        "desde": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "hasta": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      },
+                      "required": ["desde", "hasta"],
+                      "additionalProperties": false
                     }
                   },
-                  "required": ["data", "pagination"],
+                  "required": ["data", "pagination", "filtros"],
                   "additionalProperties": false
                 }
               }
@@ -3025,6 +3099,56 @@
         "parameters": [
           {
             "in": "query",
+            "name": "desde",
+            "required": false,
+            "description": "Fecha civil inicial incluida. Con hasta, máximo 30 días; sin ambos se usan los últimos 30 días.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasta",
+            "required": false,
+            "description": "Fecha civil final incluida.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accion",
+            "required": false,
+            "description": "Acción exacta, p. ej. CREAR_CITA.",
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "entidad",
+            "required": false,
+            "description": "Módulo exacto, p. ej. cita.",
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Busca en nombre del empleado o identificador relacionado.",
+            "schema": {
+              "type": "string",
+              "maxLength": 150
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -3042,6 +3166,161 @@
               "type": "integer",
               "minimum": 0,
               "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/auditoria/exportar": {
+      "get": {
+        "summary": "Exporta a CSV (UTF-8 con BOM) todos los eventos filtrados; máximo 30 días. Queda registrado como EXPORTAR_AUDITORIA.",
+        "tags": ["Administración"],
+        "security": [
+          {
+            "sesion": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo CSV: id_log, fecha_hora, usuario, rol, accion, modulo, id_relacionado, descripcion",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión requerida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso, origen o CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de agenda o datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de intentos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "desde",
+            "required": false,
+            "description": "Fecha civil inicial incluida. Con hasta, máximo 30 días; sin ambos se usan los últimos 30 días.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasta",
+            "required": false,
+            "description": "Fecha civil final incluida.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accion",
+            "required": false,
+            "description": "Acción exacta, p. ej. CREAR_CITA.",
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "entidad",
+            "required": false,
+            "description": "Módulo exacto, p. ej. cita.",
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Busca en nombre del empleado o identificador relacionado.",
+            "schema": {
+              "type": "string",
+              "maxLength": 150
             }
           }
         ]
@@ -3923,7 +4202,7 @@
             "maxLength": 20
           },
           "marca": {
-            "type": "string",
+            "type": ["string", "null"],
             "maxLength": 50
           },
           "modelo": {
@@ -3931,7 +4210,8 @@
             "maxLength": 50
           },
           "tipo": {
-            "enum": ["GENERAL", "PESADO"]
+            "enum": ["GENERAL", "PESADO"],
+            "default": "GENERAL"
           },
           "anio": {
             "type": ["integer", "null"],
@@ -3942,7 +4222,7 @@
             "type": ["string", "null"]
           }
         },
-        "required": ["placa", "marca", "modelo", "tipo"],
+        "required": ["placa", "modelo"],
         "additionalProperties": false
       },
       "CitaInput": {
@@ -3963,8 +4243,14 @@
               "DIAGNOSTICO_ESCANER",
               "FRENOS_SUSPENSION",
               "MECANICA_GENERAL",
-              "ALINEACION_BALANCEO"
+              "ALINEACION_BALANCEO",
+              "OTROS"
             ]
+          },
+          "servicio_detalle": {
+            "type": ["string", "null"],
+            "maxLength": 200,
+            "description": "Obligatoria (no vacía) cuando servicio_codigo=OTROS; se guarda null para los demás servicios."
           },
           "notas": {
             "type": ["string", "null"],
@@ -4122,6 +4408,10 @@
           },
           "nombre": {
             "type": "string"
+          },
+          "requiere_detalle": {
+            "type": "boolean",
+            "description": "true en OTROS: la cita debe incluir servicio_detalle."
           }
         },
         "required": ["codigo", "nombre"],
@@ -4167,6 +4457,9 @@
             "type": ["string", "null"]
           },
           "servicio_codigo": {
+            "type": ["string", "null"]
+          },
+          "servicio_detalle": {
             "type": ["string", "null"]
           },
           "notas": {

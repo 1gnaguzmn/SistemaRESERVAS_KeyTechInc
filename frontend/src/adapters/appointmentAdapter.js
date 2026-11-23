@@ -23,9 +23,11 @@ export function toUIAppointment(raw, services = []) {
     vehBrand: raw.marca || "",
     vehModel: raw.modelo || "",
     serviceCode: raw.servicio_codigo,
+    serviceDetail: raw.servicio_detalle || "",
     service:
-      services.find((s) => s.codigo === raw.servicio_codigo)?.nombre ||
-      raw.servicio_codigo,
+      (services.find((s) => s.codigo === raw.servicio_codigo)?.nombre ||
+        raw.servicio_codigo) +
+      (raw.servicio_detalle ? `: ${raw.servicio_detalle}` : ""),
     comments: raw.notas || "",
     date: raw.inicio.slice(0, 10),
     timeSlot: raw.inicio.slice(11, 16) + " - " + raw.fin.slice(11, 16),
@@ -35,7 +37,7 @@ export function toUIAppointment(raw, services = []) {
     createdAt: raw.creado_en,
   };
 }
-export function toBackendAppointmentPayload(ui) {
+export function toBackendAppointmentPayload(ui, services = []) {
   const [start, end] = ui.timeSlot.split(" - ");
   return {
     cliente: {
@@ -45,7 +47,7 @@ export function toBackendAppointmentPayload(ui) {
     },
     vehiculo: {
       placa: ui.placa,
-      marca: ui.vehBrand,
+      marca: ui.vehBrand?.trim() || null,
       modelo: ui.vehModel,
       tipo: ui.vehType,
     },
@@ -53,6 +55,10 @@ export function toBackendAppointmentPayload(ui) {
       inicio: ui.date + " " + start + ":00",
       fin: ui.date + " " + end + ":00",
       servicio_codigo: ui.serviceCode,
+      servicio_detalle: services.find((s) => s.codigo === ui.serviceCode)
+        ?.requiere_detalle
+        ? ui.serviceDetail
+        : null,
       notas: ui.comments || null,
     },
   };

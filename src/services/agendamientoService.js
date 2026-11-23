@@ -12,13 +12,31 @@ const { transaction, lockDays } = require("../lib/transaction");
 const { ACTIVE_STATES, STATES, weekday, interval } = require("../lib/agenda");
 
 function citaInput(input, allowPast = false) {
-  v.object(input, ["inicio", "fin", "servicio_codigo", "notas"]);
+  v.object(input, [
+    "inicio",
+    "fin",
+    "servicio_codigo",
+    "servicio_detalle",
+    "notas",
+  ]);
   const times = interval(input, { allowPast });
-  if (!services.some((s) => s.codigo === input.servicio_codigo))
+  const service = services.find((s) => s.codigo === input.servicio_codigo);
+  if (!service)
     v.invalid("Selecciona un servicio válido.", ["servicio_codigo"]);
+  if (
+    service.requiere_detalle &&
+    (typeof input.servicio_detalle !== "string" ||
+      !input.servicio_detalle.trim())
+  )
+    v.invalid("Describe el servicio requerido al elegir Otros.", [
+      "servicio_detalle",
+    ]);
   return {
     ...times,
     servicio_codigo: input.servicio_codigo,
+    servicio_detalle: service.requiere_detalle
+      ? v.string(input.servicio_detalle, "servicio_detalle", 200)
+      : null,
     notas: v.string(input.notas, "notas", 10000, false),
   };
 }
@@ -47,7 +65,7 @@ function clientInput(input) {
 }
 function vehicleInput(input) {
   v.object(input, ["placa", "marca", "modelo", "tipo", "anio", "color"]);
-  if (!["GENERAL", "PESADO"].includes(input.tipo))
+  if (input.tipo != null && !["GENERAL", "PESADO"].includes(input.tipo))
     v.invalid("Tipo de vehículo no válido.");
   if (
     input.anio != null &&
@@ -56,9 +74,11 @@ function vehicleInput(input) {
     v.invalid("Año no válido.");
   return {
     placa: v.plate(input.placa),
-    marca: v.string(input.marca, "marca", 50),
     modelo: v.string(input.modelo, "modelo", 50),
-    tipo: input.tipo,
+    ...(input.marca !== undefined
+      ? { marca: v.string(input.marca, "marca", 50, false) }
+      : {}),
+    ...(input.tipo != null ? { tipo: input.tipo } : {}),
     ...(input.anio !== undefined ? { anio: input.anio } : {}),
     ...(input.color !== undefined
       ? { color: v.string(input.color, "color", 30, false) }
@@ -135,7 +155,14 @@ async function manual(body, user) {
   });
 }
 async function existing(body, user) {
-  v.object(body, ["placa", "inicio", "fin", "servicio_codigo", "notas"]);
+  v.object(body, [
+    "placa",
+    "inicio",
+    "fin",
+    "servicio_codigo",
+    "servicio_detalle",
+    "notas",
+  ]);
   const placa = v.plate(body.placa);
   const { placa: ignored, ...data } = body;
   const cita = citaInput(data);

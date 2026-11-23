@@ -43,6 +43,13 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
     );
     await importSql(
       adminConnection,
+      path.resolve(
+        __dirname,
+        "../../../db/migrations/003_servicio_detalle.sql",
+      ),
+    );
+    await importSql(
+      adminConnection,
       path.resolve(__dirname, "../../../db/seed.demo.sql"),
     );
     pool = require("../../config/database");
@@ -144,7 +151,10 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
     const me = await admin.get("/api/auth/me").expect(200);
     assert.equal(me.body.data.usuario.contrasena_hash, undefined);
     const catalog = await request(app).get("/api/servicios").expect(200);
-    assert.equal(catalog.body.data.length, 5);
+    assert.equal(catalog.body.data.length, 6);
+    assert.ok(
+      catalog.body.data.some((s) => s.codigo === "OTROS" && s.requiere_detalle),
+    );
   });
   test("tres citas admitidas; cuarto y sus maestros se revierten", async () => {
     for (const i of [1, 2, 3]) {
@@ -439,10 +449,275 @@ describe("API V6 con MySQL real", { skip: !database }, () => {
         "SHOW COLUMNS FROM configuracion_agenda LIKE 'capacidad_maxima'",
       );
       assert.equal(columns.length, 1);
+      for (let run = 0; run < 2; run++)
+        await importSql(
+          adminConnection,
+          path.resolve(
+            __dirname,
+            "../../../db/migrations/003_servicio_detalle.sql",
+          ),
+        );
+      const [[legacyRow]] = await adminConnection.query(
+        "SELECT servicio_detalle FROM cita WHERE id_cita='legacy-cita'",
+      );
+      assert.equal(legacyRow.servicio_detalle, null);
     } finally {
       await adminConnection.query(`USE \`${database}\``);
       await adminConnection.query(`DROP DATABASE \`${legacy}\``);
     }
+  });
+  test("RF-01: servicio Otros exige, guarda y limpia su descripción", async () => {
+    const { addDays } = require("../../lib/validation");
+    const otherDate = addDays(date, 10);
+    const other = body(30);
+    other.cita = {
+      inicio: `${otherDate} 08:00:00`,
+      fin: `${otherDate} 10:00:00`,
+      servicio_codigo: "OTROS",
+    };
+    await post("/api/citas/manuales", other).expect(400);
+    other.cita.servicio_detalle = "   ";
+    await post("/api/citas/manuales", other).expect(400);
+    other.cita.servicio_detalle = "Revisión de aire acondicionado";
+    const created = await post("/api/citas/manuales", other).expect(201);
+    assert.equal(
+      created.body.data.servicio_detalle,
+      "Revisión de aire acondicionado",
+    );
+    const listed = await jefe
+      .get("/api/citas")
+      .query({ fecha: otherDate })
+      .expect(200);
+    assert.ok(
+      listed.body.data.some(
+        (c) => c.servicio_detalle === "Revisión de aire acondicionado",
+      ),
+    );
+    const regular = body(30);
+    regular.cita = {
+      ...other.cita,
+      servicio_codigo: "MECANICA_GENERAL",
+      servicio_detalle: "Se ignora",
+    };
+    const updated = await put(
+      `/api/citas/${created.body.data.id_cita}`,
+      regular,
+    ).expect(200);
+    assert.equal(updated.body.data.servicio_detalle, null);
+    assert.equal(updated.body.data.servicio_codigo, "MECANICA_GENERAL");
+  });
+  test("RF-02: solo placa y modelo son obligatorios en el vehículo", async () => {
+    const { addDays } = require("../../lib/validation");
+    const otherDate = addDays(date, 10);
+    const minimal = body(31, "10:00", "12:00");
+    minimal.cita.inicio = `${otherDate} 10:00:00`;
+    minimal.cita.fin = `${otherDate} 12:00:00`;
+    minimal.vehiculo = { placa: "MIN31", modelo: "Hilux" };
+    const created = await post("/api/citas/manuales", minimal).expect(201);
+    assert.equal(created.body.data.marca, null);
+    assert.equal(created.body.data.modelo, "Hilux");
+    assert.equal(created.body.data.tipo, "GENERAL");
+    const emptyBrand = body(32, "12:00", "14:00");
+    emptyBrand.cita.inicio = `${otherDate} 12:00:00`;
+    emptyBrand.cita.fin = `${otherDate} 14:00:00`;
+    emptyBrand.vehiculo = {
+      placa: "MIN32",
+      marca: "",
+      modelo: "Rio",
+      tipo: "GENERAL",
+    };
+    await post("/api/citas/manuales", emptyBrand).expect(201);
+    const noModel = body(33, "14:00", "16:00");
+    noModel.cita.inicio = `${otherDate} 14:00:00`;
+    noModel.cita.fin = `${otherDate} 16:00:00`;
+    noModel.vehiculo = { placa: "MIN33", marca: "Kia", modelo: "" };
+    await post("/api/citas/manuales", noModel).expect(400);
+    noModel.vehiculo = { modelo: "Rio" };
+    await post("/api/citas/manuales", noModel).expect(400);
+    const heavy = body(34, "16:00", "18:00");
+    heavy.cita.inicio = `${otherDate} 16:00:00`;
+    heavy.cita.fin = `${otherDate} 18:00:00`;
+    heavy.vehiculo = {
+      placa: "MIN34",
+      marca: "Hino",
+      modelo: "300",
+      tipo: "PESADO",
+    };
+    await post("/api/citas/manuales", heavy).expect(201);
+    const again = body(34, "08:00", "10:00");
+    again.cita.inicio = `${addDays(date, 11)} 08:00:00`;
+    again.cita.fin = `${addDays(date, 11)} 10:00:00`;
+    again.vehiculo = { placa: "MIN34", modelo: "300" };
+    await post("/api/citas/manuales", again).expect(201);
+    const [[heavyKept]] = await pool.execute(
+      "SELECT marca,tipo FROM vehiculo WHERE placa='MIN34'",
+    );
+    assert.deepEqual(heavyKept, { marca: "Hino", tipo: "PESADO" });
+    const [[kept]] = await pool.execute(
+      "SELECT marca,modelo FROM vehiculo WHERE placa='TEST1'",
+    );
+    assert.deepEqual(kept, { marca: "Alfa Romeo", modelo: "Giulia" });
+  });
+  test("RF-03: paginación ascendente sin omisiones ni duplicados en más de 10 páginas", async () => {
+    const { today } = require("../../lib/agenda");
+    const { addDays } = require("../../lib/validation");
+    for (let i = 1; i <= 12; i++)
+      await pool.execute(
+        "INSERT INTO cita(id_cita,placa,inicio,fin,estado,origen,servicio_codigo) VALUES(?,?,?,?,'COMPLETADA','WEB','MECANICA_GENERAL')",
+        [
+          `00000000-0000-4000-8000-${String(900 + i).padStart(12, "0")}`,
+          "DEMO001",
+          `${addDays(today(), -i)} 08:00:00`,
+          `${addDays(today(), -i)} 10:00:00`,
+        ],
+      );
+    const ids = [];
+    let total = Infinity;
+    for (let offset = 0; offset < total; offset++) {
+      const page = await admin
+        .get("/api/citas")
+        .query({ limit: 1, offset })
+        .expect(200);
+      total = page.body.pagination.total;
+      ids.push(...page.body.data.map((c) => `${c.inicio}|${c.id_cita}`));
+    }
+    assert.ok(total > 10, "se requieren más de 10 páginas");
+    assert.equal(ids.length, total);
+    assert.equal(new Set(ids).size, total);
+    assert.deepEqual(ids, [...ids].sort());
+    const desc = await admin
+      .get("/api/citas")
+      .query({ limit: 100, orden: "desc" })
+      .expect(200);
+    assert.deepEqual(
+      desc.body.data.map((c) => `${c.inicio}|${c.id_cita}`),
+      [...ids].reverse(),
+    );
+    const upcoming = await admin
+      .get("/api/citas")
+      .query({ desde: today(), limit: 100 })
+      .expect(200);
+    assert.equal(upcoming.body.pagination.total, total - 12);
+    assert.ok(
+      upcoming.body.data.every((c) => c.inicio >= `${today()} 00:00:00`),
+    );
+    const history = await admin
+      .get("/api/citas")
+      .query({ hasta: addDays(today(), -1), orden: "desc", limit: 100 })
+      .expect(200);
+    assert.equal(
+      history.body.data[0].inicio,
+      `${addDays(today(), -1)} 08:00:00`,
+    );
+    await admin.get("/api/citas").query({ orden: "x" }).expect(400);
+    await admin
+      .get("/api/citas")
+      .query({ desde: today(), hasta: addDays(today(), -1) })
+      .expect(400);
+  });
+  test("RF-04/05: el tablero filtra por día y por rangos de fechas", async () => {
+    const { today } = require("../../lib/agenda");
+    const { addDays } = require("../../lib/validation");
+    const day = await jefe
+      .get("/api/taller/tablero")
+      .query({ desde: today(), hasta: today() })
+      .expect(200);
+    for (const column of day.body.data.columnas)
+      assert.ok(column.data.every((c) => c.inicio.startsWith(today())));
+    const last15 = await jefe
+      .get("/api/taller/tablero")
+      .query({ desde: addDays(today(), -14), hasta: today() })
+      .expect(200);
+    const completed = last15.body.data.columnas.find(
+      (c) => c.estado === "COMPLETADA",
+    );
+    assert.equal(completed.pagination.total, 12);
+    const next15 = await jefe
+      .get("/api/taller/tablero")
+      .query({ desde: today(), hasta: addDays(today(), 14) })
+      .expect(200);
+    const all = next15.body.data.columnas.flatMap((c) => c.data);
+    assert.ok(all.length > 0);
+    assert.ok(
+      all.every(
+        (c) =>
+          c.inicio >= `${today()} 00:00:00` &&
+          c.inicio < `${addDays(today(), 15)} 00:00:00`,
+      ),
+    );
+    await jefe
+      .get("/api/taller/tablero")
+      .query({ desde: today(), hasta: addDays(today(), -1) })
+      .expect(400);
+  });
+  test("RF-06: auditoría limitada a 30 días y exportación CSV completa", async () => {
+    const { today } = require("../../lib/agenda");
+    const { addDays } = require("../../lib/validation");
+    const range = { desde: addDays(today(), -29), hasta: today() };
+    await admin
+      .get("/api/auditoria")
+      .query({ desde: addDays(today(), -30), hasta: today() })
+      .expect(400);
+    await admin.get("/api/auditoria").query({ desde: today() }).expect(400);
+    await admin
+      .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", csrf)
+      .query({ desde: addDays(today(), -30), hasta: today() })
+      .expect(400);
+    const forged = await admin
+      .get("/api/auditoria/exportar")
+      .query(range)
+      .expect(403);
+    assert.equal(forged.body.code, "INVALID_CSRF");
+    const defaults = await admin.get("/api/auditoria").expect(200);
+    assert.deepEqual(defaults.body.filtros, range);
+    const page = await admin
+      .get("/api/auditoria")
+      .query({ ...range, limit: 2 })
+      .expect(200);
+    assert.ok(page.body.pagination.total > 2);
+    const filtered = await admin
+      .get("/api/auditoria")
+      .query({ ...range, accion: "CREAR_CITA" })
+      .expect(200);
+    await jefe
+      .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", jefeCsrf)
+      .query(range)
+      .expect(403);
+    await request(app).get("/api/auditoria/exportar").expect(401);
+    const csv = await admin
+      .get("/api/auditoria/exportar")
+      .set("X-CSRF-Token", csrf)
+      .query({ ...range, accion: "CREAR_CITA" })
+      .buffer(true)
+      .parse((res, done) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => done(null, Buffer.concat(chunks).toString("utf8")));
+      })
+      .expect(200);
+    assert.match(csv.headers["content-type"], /text\/csv/);
+    assert.match(
+      csv.headers["content-disposition"],
+      new RegExp(`auditoria_${range.desde}_${range.hasta}\\.csv`),
+    );
+    const text = csv.body;
+    assert.equal(text.charCodeAt(0), 0xfeff);
+    const rows = text.slice(1).trimEnd().split("\r\n");
+    assert.equal(
+      rows[0],
+      "id_log,fecha_hora,usuario,rol,accion,modulo,id_relacionado,descripcion",
+    );
+    assert.equal(rows.length - 1, filtered.body.pagination.total);
+    assert.ok(filtered.body.pagination.total > 2);
+    assert.ok(rows.slice(1).every((r) => r.includes(",CREAR_CITA,")));
+    assert.doesNotMatch(text, /contrasena|csrf/i);
+    const exported = await admin
+      .get("/api/auditoria")
+      .query({ ...range, accion: "EXPORTAR_AUDITORIA" })
+      .expect(200);
+    assert.equal(exported.body.pagination.total, 1);
   });
   test("público desde mañana, sesión inactiva y vencida", async () => {
     const { today } = require("../../lib/agenda");
