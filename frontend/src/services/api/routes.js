@@ -104,4 +104,9 @@ export const API_ROUTES = {
     path: "/auditoria",
     status: "CONFIRMED",
   },
+  AUDITORIA_EXPORT: {
+    method: "GET",
+    path: "/auditoria/exportar",
+    status: "CONFIRMED",
+  },
 };

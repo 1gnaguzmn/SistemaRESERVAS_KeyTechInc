@@ -8,17 +8,45 @@ import { useToast } from "../../context/ToastContext";
 import RequestState from "../../components/ui/RequestState";
 import KanbanBoard from "./KanbanBoard";
 import EditBookingModal from "../appointments/EditBookingModal";
+import {
+  formatDateShort,
+  getPeriodRange,
+  getTodayCivilDate,
+  WORKSHOP_PERIODS,
+} from "../../utils/dateUtils";
 export default function WorkshopView() {
   const { services, changeKanbanStep } = useAgenda(),
     { showToast } = useToast();
-  const [filters, setFilters] = useState({ fecha: "", turno: "ALL" }),
+  const [filters, setFilters] = useState(() => ({
+      periodo: "HOY",
+      ...getPeriodRange("HOY"),
+      turno: "ALL",
+    })),
     [columns, setColumns] = useState([]),
     [selected, setSelected] = useState(null),
     [busy, setBusy] = useState(false);
-  const query = useApiQuery(R.WORKSHOP, filters);
+  const validRange =
+    Boolean(filters.desde && filters.hasta) && filters.desde <= filters.hasta;
+  const boardQuery = {
+    desde: filters.desde,
+    hasta: filters.hasta,
+    turno: filters.turno,
+  };
+  const query = useApiQuery(R.WORKSHOP, boardQuery, validRange);
+  const periodName = WORKSHOP_PERIODS.find(
+    (p) => p.value === filters.periodo,
+  )?.label;
+  const periodLabel = !validRange
+    ? "Selecciona un rango válido: la fecha inicial no puede ser posterior a la final."
+    : filters.desde === filters.hasta
+      ? `${periodName}: ${formatDateShort(filters.desde)}${filters.desde === getTodayCivilDate() ? " (hoy)" : ""}`
+      : `${periodName}: del ${formatDateShort(filters.desde)} al ${formatDateShort(filters.hasta)}`;
   useEffect(() => {
     if (query.response) setColumns(query.response.data.columnas);
   }, [query.response]);
+  useEffect(() => {
+    if (!validRange) setColumns([]);
+  }, [validRange]);
   const move = async (id, step) => {
     if (busy) return;
     setBusy(true);
@@ -35,7 +63,7 @@ export default function WorkshopView() {
       const current = columns.find((c) => c.estado === estado);
       const result = await apiRequest(R.CITAS_LIST, {
         queryParams: {
-          ...filters,
+          ...boardQuery,
           estado,
           limit: 25,
           offset: current.data.length,
@@ -46,7 +74,12 @@ export default function WorkshopView() {
           c.estado === estado
             ? {
                 ...c,
-                data: [...c.data, ...result.data],
+                data: [
+                  ...c.data,
+                  ...result.data.filter(
+                    (r) => !c.data.some((x) => x.id_cita === r.id_cita),
+                  ),
+                ],
                 pagination: result.pagination,
               }
             : c,
@@ -82,6 +115,8 @@ export default function WorkshopView() {
         onEditAppointment={setSelected}
         filters={filters}
         setFilters={setFilters}
+        periodLabel={periodLabel}
+        validRange={validRange}
         columnsData={columns}
         onLoadMore={load}
         busy={busy || query.loading}

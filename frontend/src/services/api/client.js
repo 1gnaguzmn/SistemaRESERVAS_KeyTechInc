@@ -77,3 +77,52 @@ export async function apiRequest(route, options = {}) {
   }
   return result;
 }
+
+/** Descarga un archivo (p. ej. CSV) con la sesión actual sin pasar por JSON. */
+export async function apiDownload(route, options = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options.queryParams || {}))
+    if (value !== undefined && value !== null && value !== "")
+      query.set(key, String(value));
+  let response;
+  try {
+    response = await fetch(
+      BASE_URL + route.path + (query.size ? "?" + query : ""),
+      {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken },
+      },
+    );
+  } catch {
+    throw new ApiError(
+      "No se pudo conectar con el servidor.",
+      0,
+      "NETWORK_ERROR",
+    );
+  }
+  if (!response.ok) {
+    if (response.status === 401)
+      window.dispatchEvent(new Event("bookit:unauthorized"));
+    const result = await response.json().catch(() => null);
+    throw new ApiError(
+      result?.message || "No se pudo descargar el archivo.",
+      response.status,
+      result?.code,
+      result?.fields,
+    );
+  }
+  const filename =
+    response.headers
+      .get("Content-Disposition")
+      ?.match(/filename="([^"]+)"/)?.[1] || "descarga.csv";
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return filename;
+}

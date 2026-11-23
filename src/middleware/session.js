@@ -62,20 +62,28 @@ async function requireAuth(req, res, next) {
     throw new AppError(401, "SESSION_INVALID", "La sesión no es válida.");
   }
   req.user = user;
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
-    const supplied = Buffer.from(req.get("x-csrf-token") || "");
-    const expected = Buffer.from(req.session.csrf || "");
-    if (
-      !expected.length ||
-      supplied.length !== expected.length ||
-      !timingSafeEqual(supplied, expected)
-    )
-      throw new AppError(
-        403,
-        "INVALID_CSRF",
-        "Actualiza la sesión y vuelve a intentar.",
-      );
-  }
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) verifyCsrf(req);
+  next();
+}
+
+function verifyCsrf(req) {
+  const supplied = Buffer.from(req.get("x-csrf-token") || "");
+  const expected = Buffer.from(req.session?.csrf || "");
+  if (
+    !expected.length ||
+    supplied.length !== expected.length ||
+    !timingSafeEqual(supplied, expected)
+  )
+    throw new AppError(
+      403,
+      "INVALID_CSRF",
+      "Actualiza la sesión y vuelve a intentar.",
+    );
+}
+
+// GET con efecto (p. ej. registrar una exportación): exige el token como las escrituras.
+function requireCsrf(req, _res, next) {
+  verifyCsrf(req);
   next();
 }
 const requireRoles =
@@ -144,6 +152,7 @@ module.exports = {
   originCheck,
   requireAuth,
   requireRoles,
+  requireCsrf,
   login,
   MANAGERS,
   ROLES,

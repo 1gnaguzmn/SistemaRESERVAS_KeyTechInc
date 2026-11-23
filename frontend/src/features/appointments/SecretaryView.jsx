@@ -8,6 +8,7 @@ import KpiCards from "./KpiCards";
 import AppointmentsTable from "./AppointmentsTable";
 import ManualBookingModal from "./ManualBookingModal";
 import EditBookingModal from "./EditBookingModal";
+import { addDaysCivil, getTodayCivilDate } from "../../utils/dateUtils";
 export default function SecretaryView() {
   const { services, changeAppointmentStatus } = useAgenda();
   const [filters, setFilters] = useState({
@@ -15,13 +16,20 @@ export default function SecretaryView() {
     fecha: "",
     turno: "ALL",
     estado: "ALL",
+    vista: "PROXIMAS",
+    orden: "asc",
     limit: 25,
     offset: 0,
   });
   const [manual, setManual] = useState(false),
     [selected, setSelected] = useState(null),
     [busy, setBusy] = useState(false);
-  const list = useApiQuery(R.CITAS_LIST, filters),
+  const { vista, ...listQuery } = filters;
+  const today = getTodayCivilDate();
+  if (!filters.fecha && vista === "PROXIMAS") listQuery.desde = today;
+  if (!filters.fecha && vista === "HISTORIAL")
+    listQuery.hasta = addDaysCivil(today, -1);
+  const list = useApiQuery(R.CITAS_LIST, listQuery),
     summary = useApiQuery(R.CITAS_SUMMARY);
   const appointments = (list.response?.data || []).map((r) =>
     toUIAppointment(r, services),

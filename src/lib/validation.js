@@ -67,7 +67,36 @@ function pagination(query) {
     );
   return { limit, offset };
 }
+function daysBetween(from, to) {
+  return Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86400000,
+  );
+}
+function addDays(date, days) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+function dateRange(query, { maxDays } = {}) {
+  const desde = query.desde ? civilDate(query.desde, "desde") : null;
+  const hasta = query.hasta ? civilDate(query.hasta, "hasta") : null;
+  if (desde && hasta && desde > hasta)
+    invalid("La fecha inicial no puede ser posterior a la final.", [
+      "desde",
+      "hasta",
+    ]);
+  if (maxDays && (!desde || !hasta || daysBetween(desde, hasta) + 1 > maxDays))
+    invalid(`El rango de consulta no puede superar ${maxDays} días.`, [
+      "desde",
+      "hasta",
+    ]);
+  return { desde, hasta };
+}
 module.exports = {
+  addDays,
+  daysBetween,
+  dateRange,
   invalid,
   object,
   string,

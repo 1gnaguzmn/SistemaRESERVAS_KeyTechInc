@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import KanbanCard from "./KanbanCard";
 import { getSlotShift } from "../../utils/timeSlots";
+import { getPeriodRange, WORKSHOP_PERIODS } from "../../utils/dateUtils";
 
 export default function KanbanBoard({
   appointments,
@@ -11,9 +12,21 @@ export default function KanbanBoard({
   columnsData,
   onLoadMore,
   busy,
+  periodLabel,
+  validRange,
 }) {
-  const filterDate = filters.fecha;
-  const setFilterDate = (fecha) => setFilters((f) => ({ ...f, fecha }));
+  const setPeriod = (periodo) =>
+    setFilters((f) => ({
+      ...f,
+      periodo,
+      ...(periodo === "PERSONALIZADO" ? {} : getPeriodRange(periodo)),
+    }));
+  const setRange = (key) => (e) =>
+    setFilters((f) => ({
+      ...f,
+      periodo: "PERSONALIZADO",
+      [key]: e.target.value,
+    }));
   const filterShift = filters.turno;
   const setFilterShift = (turno) => setFilters((f) => ({ ...f, turno }));
 
@@ -48,9 +61,7 @@ export default function KanbanBoard({
   const activeAppointments = appointments.filter((a) => {
     if (a.status === "CANCELADO") return false;
     const shift = getSlotShift(a.timeSlot);
-    const matchesDate = !filterDate || a.date === filterDate;
-    const matchesShift = filterShift === "ALL" || shift === filterShift;
-    return matchesDate && matchesShift;
+    return filterShift === "ALL" || shift === filterShift;
   });
 
   return (
@@ -68,24 +79,36 @@ export default function KanbanBoard({
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* Filtro por Fecha */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-bold">Fecha:</span>
+          {/* Filtro por Período (fecha civil de El Salvador) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 font-bold">Período:</span>
+            <select
+              aria-label="Período"
+              value={filters.periodo}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 bg-white outline-none cursor-pointer"
+            >
+              {WORKSHOP_PERIODS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
             <input
               type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              aria-label="Desde"
+              value={filters.desde}
+              onChange={setRange("desde")}
               className="px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white outline-none"
             />
-            {filterDate && (
-              <button
-                type="button"
-                onClick={() => setFilterDate("")}
-                className="text-xs text-red-600 hover:underline font-bold"
-              >
-                Todas
-              </button>
-            )}
+            <span className="text-xs text-gray-500 font-bold">a</span>
+            <input
+              type="date"
+              aria-label="Hasta"
+              value={filters.hasta}
+              onChange={setRange("hasta")}
+              className="px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-bold text-gray-800 bg-white outline-none"
+            />
           </div>
 
           {/* Filtro por Turno */}
@@ -103,6 +126,14 @@ export default function KanbanBoard({
           </div>
         </div>
       </div>
+
+      <p
+        role="status"
+        className={`text-sm font-bold px-1 ${validRange ? "text-gray-700" : "text-red-600"}`}
+      >
+        <i aria-hidden="true" className="fa-regular fa-calendar mr-2"></i>
+        {periodLabel}
+      </p>
 
       {/* Columnas Kanban */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">

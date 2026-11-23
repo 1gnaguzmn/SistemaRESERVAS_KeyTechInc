@@ -60,6 +60,7 @@ La contraseña admite hasta 72 bytes. Solo se imprime identificador, correo y ro
 - Para una base de la demo MySQL anterior, respaldar y aplicar `db/migrations/002_v6.sql`. No ejecutar otra vez el esquema completo sobre tablas existentes.
 - La migración agrega columnas faltantes, estados, `creado_en` y rutinas. Los servicios históricos desconocidos quedan `NULL`; al editar esas citas se debe seleccionar un servicio real. Las nuevas altas siempre lo exigen.
 - Revisar capacidad por día: si la columna no existía, la migración utiliza inicialmente 1. No inventa servicios ni modifica horarios de citas.
+- **V7.1:** respaldar y aplicar `db/migrations/003_servicio_detalle.sql` **antes** de desplegar el backend V7.1. Agrega la columna nullable `cita.servicio_detalle` solo si no existe; es idempotente y no modifica datos. Las instalaciones nuevas ya la reciben en el esquema completo.
 - `db/routines.v6.sql` contiene las mismas rutinas que el esquema, para actualizaciones específicas. No agrega columnas.
 - `db/seed.demo.sql` es exclusivo de desarrollo/pruebas. Incluye jornada y citas con los cinco estados; no incluye credenciales. No ejecutarlo en producción.
 - Para empleados de prueba, ejecutar opcionalmente `db/seed.empleados.demo.sql` después del esquema. Crea una cuenta por cada rol actual con contraseña inicial `DemoTaller2026!`; no cambia cuentas existentes. Este seed es exclusivo de desarrollo; para personal real usar la herramienta de provisión.
@@ -74,16 +75,19 @@ Contrato completo: [src/openapi.json](src/openapi.json), OpenAPI 3.1. El prefijo
 - Las escrituras requieren `Origin` permitido y `X-CSRF-Token` obtenido de login o `/auth/me`. Enviar JSON también para `DELETE`. React conserva el token solo en memoria.
 - Secretaría, Administración y Dueño administran los tres paneles. Jefe consulta tablero y edita/avanza fichas; no administra horarios, cierres, auditoría ni cancela/reactiva canceladas.
 - Registro completo: `POST /citas/manuales`, con `cliente`, `vehiculo` y `cita`. El servidor asigna autor y origen interno `TELEFONO`; no acepta permisos ni autor elegidos por el navegador.
-- Listado: `GET /citas?q=&fecha=&turno=&estado=&limit=25&offset=0`. Incluye `pagination.total`. KPIs y filtros se calculan en servidor. El tablero entrega 25 tarjetas por columna y permite cargar más.
+- Listado: `GET /citas?q=&fecha=&desde=&hasta=&turno=&estado=&orden=asc&limit=25&offset=0`. `desde`/`hasta` son fechas civiles incluidas; `orden` (`asc` por defecto) ordena por inicio y desempata por `id_cita`. Incluye `pagination.total`. Secretaría abre en “Próximas citas” (desde hoy, ascendente) y ofrece Historial/Todas, “Página X de Y”, primera/última y tamaño de página.
+- Taller: `GET /taller/tablero` acepta también `desde`/`hasta`. La vista del jefe abre en la fecha de hoy de El Salvador y ofrece Hoy, Últimos/Próximos 15 días, Último/Próximo mes y rango personalizado.
+- Auditoría: `GET /auditoria?desde=&hasta=&accion=&entidad=&q=` limita cada consulta a 30 días (sin fechas: últimos 30). `GET /auditoria/exportar` descarga en CSV UTF-8 todos los resultados filtrados, exige `X-CSRF-Token`, omite claves sensibles, neutraliza fórmulas y registra `EXPORTAR_AUDITORIA`. Mismos roles que la consulta. KPIs y filtros se calculan en servidor. El tablero entrega 25 tarjetas por columna y permite cargar más.
 - Kanban y Secretaría usan `PATCH /citas/:id/estado`. Estados: `PENDIENTE`, `EN_DIAGNOSTICO`, `EN_REPARACION`, `COMPLETADA`, `CANCELADA`. Las dos etapas intermedias se muestran como “En taller”. Completadas y canceladas liberan cupo; reactivar vuelve a validarlo.
 - Se utilizan UUID, sin folios aleatorios. Las citas se cancelan, no se eliminan.
+- Vehículo: solo placa y modelo son obligatorios; marca, año y color son opcionales y el tipo es `GENERAL` por defecto. Omitir un campo no borra el valor guardado de un vehículo existente.
 - Editar cliente/vehículo actualiza datos compartidos y registra antes/después. La placa se normaliza sin espacios/guiones y en mayúsculas. Una placa de otro cliente provoca conflicto; no se transfiere su propietario. Revisar variantes equivalentes antes de migrar datos reales.
 - Cambiar placa desde una cita asocia otro vehículo del mismo cliente; no renombra las referencias históricas del vehículo anterior.
 - Fechas: cadenas civiles `YYYY-MM-DD HH:MM:SS` de `America/El_Salvador`, sin convertir con `toISOString()`. La conexión SQL utiliza `-06:00` y devuelve fechas como cadenas.
 - Intervalos `[inicio, fin)`: terminar a las 10:00 no ocupa una cita que comienza a las 10:00. Un cierre de fecha abarca medianoche a medianoche siguiente. Cierres/horarios que invalidan citas activas se rechazan.
 - Abrir WhatsApp no crea clientes, citas, mensajes ni cupos. El personal registra la confirmación posteriormente.
 
-Catálogo fijo: `MANTENIMIENTO_PREVENTIVO`, `DIAGNOSTICO_ESCANER`, `FRENOS_SUSPENSION`, `MECANICA_GENERAL`, `ALINEACION_BALANCEO`. No requiere otra tabla.
+Catálogo fijo: `MANTENIMIENTO_PREVENTIVO`, `DIAGNOSTICO_ESCANER`, `FRENOS_SUSPENSION`, `MECANICA_GENERAL`, `ALINEACION_BALANCEO` y `OTROS`. `OTROS` exige `servicio_detalle` (descripción de hasta 200 caracteres); los demás lo guardan como `NULL`. No requiere otra tabla.
 
 ## Transacciones
 
@@ -110,6 +114,8 @@ $env:TEST_DB_USER = 'root'
 # Configurar TEST_DB_PASSWORD solo si esa instancia aislada lo requiere.
 npm.cmd --prefix src run test:integration
 ```
+
+Documentación de las mejoras V7.1 (técnica, manual de usuario, presentación y rollback): carpeta [docs/](docs/).
 
 Sin `TEST_DB_NAME` la integración se omite explícitamente. Se prueban esquema/migración, seed, login, permisos, CSRF, cupos concurrentes, rollback de maestros, estados, edición, cierres, configuración y auditoría.
 
