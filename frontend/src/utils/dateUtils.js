@@ -105,18 +105,15 @@ export function addDaysCivil(dateStr, days) {
   return dateObj.toISOString().slice(0, 10);
 }
 
-/**
- * Suma meses conservando el día; si no existe (31 de febrero) usa el último día del mes.
- */
-export function addMonthsCivil(dateStr, months) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const lastDay = new Date(
-    Date.UTC(year, month - 1 + months + 1, 0),
-  ).getUTCDate();
-  const dateObj = new Date(
-    Date.UTC(year, month - 1 + months, Math.min(day, lastDay)),
-  );
-  return dateObj.toISOString().slice(0, 10);
+/** Primer y último día del mes calendario desplazado `months` meses. */
+export function calendarMonthRange(dateStr, months) {
+  const [year, month] = dateStr.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const last = new Date(Date.UTC(year, month + months, 0));
+  return {
+    desde: first.toISOString().slice(0, 10),
+    hasta: last.toISOString().slice(0, 10),
+  };
 }
 
 /** Días civiles entre dos fechas YYYY-MM-DD, contando ambos extremos. */
@@ -149,9 +146,9 @@ export function getPeriodRange(period, today = getTodayCivilDate()) {
     case "PROXIMOS_15":
       return { desde: today, hasta: addDaysCivil(today, 14) };
     case "ULTIMO_MES":
-      return { desde: addMonthsCivil(today, -1), hasta: today };
+      return calendarMonthRange(today, -1);
     case "PROXIMO_MES":
-      return { desde: today, hasta: addMonthsCivil(today, 1) };
+      return calendarMonthRange(today, 1);
     default:
       return { desde: today, hasta: today };
   }

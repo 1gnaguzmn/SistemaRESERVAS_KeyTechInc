@@ -71,11 +71,11 @@ El único cambio de base de datos es **aditivo**: una columna nullable nueva. No
 | Hoy | hoy … hoy |
 | Últimos 15 días | hoy − 14 … hoy |
 | Próximos 15 días | hoy … hoy + 14 |
-| Último mes | mismo día del mes anterior … hoy |
-| Próximo mes | hoy … mismo día del mes siguiente |
+| Último mes | mes calendario anterior completo (día 1 … último día) |
+| Próximo mes | mes calendario siguiente completo (día 1 … último día) |
 | Rango personalizado | fechas elegidas; si inicio > fin, se muestra un error y no se consulta |
 
-- Si el día no existe en el mes destino (por ejemplo, el 31), se usa el último día de ese mes.
+- Ejemplo con hoy = 22/11/2026: Último mes = 01/10/2026 … 31/10/2026; Próximo mes = 01/12/2026 … 31/12/2026. Se respetan años bisiestos y cambios de año.
 - Una etiqueta indica el período activo. “Cargar más” respeta el rango y descarta duplicados.
 
 ### RF-06 — Auditoría con límite de 30 días y exportación
@@ -178,6 +178,5 @@ No hay variables de entorno ni credenciales nuevas.
 ## 10. Riesgos y consideraciones
 
 - Si `003` no se aplica antes del deploy, fallan las consultas de citas (mitigado con el orden obligatorio de la sección 8).
-- “Último/Próximo mes” usa meses calendario relativos, por ejemplo del 22/10 al 22/11. Si el cliente prefiere el mes calendario anterior o siguiente completo, el cambio está en `getPeriodRange()`.
 - La exportación CSV no tiene límite de filas: está acotada por la ventana de 30 días.
 - La UI no tiene módulos de “gestión de usuarios” ni de “administración de servicios”. Los usuarios se crean con `src/scripts/provisionEmployee.js` y el catálogo de servicios es fijo en código.

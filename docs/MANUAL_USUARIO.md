@@ -72,8 +72,8 @@ Al entrar, el tablero muestra las citas de **hoy**. Una línea encima de las col
 | Hoy | Citas del día actual |
 | Últimos 15 días | Desde hace 14 días hasta hoy |
 | Próximos 15 días | Desde hoy hasta dentro de 14 días |
-| Último mes | Desde el mismo día del mes anterior hasta hoy |
-| Próximo mes | Desde hoy hasta el mismo día del mes siguiente |
+| Último mes | El mes calendario anterior completo (por ejemplo, del 1 al 31 de octubre) |
+| Próximo mes | El mes calendario siguiente completo (por ejemplo, del 1 al 31 de diciembre) |
 | Rango personalizado | Las fechas **Desde** y **Hasta** que se elijan |
 
 Si la fecha inicial es posterior a la final, el sistema muestra un aviso en rojo y no carga tarjetas:

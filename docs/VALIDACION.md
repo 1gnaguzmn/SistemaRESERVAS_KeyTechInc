@@ -18,7 +18,7 @@ Entorno: rama `feature/mejoras-feedback-cliente`, MySQL 8 local desechable en Do
 | RF-01: “Otros” muestra la descripción obligatoria; sin descripción no se puede confirmar; se guarda y se muestra “Otros: …”; los servicios estándar no muestran el campo | Aprobado |
 | RF-02: reserva sin marca; placa y modelo obligatorios | Aprobado |
 | RF-03: Próximas/ascendente por defecto, Historial, Todas, orden descendente, 10/25/50/100 por página, salto directo, Primera/Última; 17 páginas recorridas con 161 IDs únicos, sin duplicados | Aprobado |
-| RF-04/05: Hoy (El Salvador), ±15 días, último/próximo mes, rango personalizado, error en rango inverso, Cargar más (de 25 a 36 tarjetas) | Aprobado |
+| RF-04/05: Hoy (El Salvador), ±15 días, último/próximo mes (luego cambiado a mes calendario completo y verificado con script), rango personalizado, error en rango inverso, Cargar más (de 25 a 36 tarjetas) | Aprobado |
 | RF-06: 30 días por defecto; 31 días muestra error y bloquea la exportación; filtros de acción y módulo | Aprobado |
 | RF-06 CSV: descarga desde la UI con CSRF; BOM y cabecera; 3/3 y 28/28 filas (resultado de 2 páginas exportado completo) | Aprobado |
 | Seguridad: exportación sin CSRF devuelve 403; Jefe sin acceso a Auditoría (403); sin sesión devuelve 401 | Aprobado |

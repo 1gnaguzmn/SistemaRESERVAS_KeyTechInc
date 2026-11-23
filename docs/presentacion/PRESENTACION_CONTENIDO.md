@@ -31,7 +31,7 @@ Archivo editable: `Presentacion_Mejoras_V7_1.pptx` (PowerPoint, Google Slides o 
    - Probado con 17 páginas: 161 citas sin omisiones ni duplicados.
 6. **RF-04 y RF-05 · Tablero del jefe.**
    - Abre en Hoy (El Salvador).
-   - Períodos: ±15 días, último/próximo mes y rango personalizado validado.
+   - Períodos: ±15 días, mes calendario anterior/siguiente completo y rango personalizado validado.
    - Una etiqueta indica el período visible.
 7. **RF-06 · Auditoría.**
    - Últimos 30 días por defecto; los rangos mayores se rechazan.
@@ -46,6 +46,5 @@ Archivo editable: `Presentacion_Mejoras_V7_1.pptx` (PowerPoint, Google Slides o 
    - Reversión: volver a la versión anterior, sin pérdida de datos.
 10. **Próximos pasos.**
     - Validación del cliente.
-    - Confirmar el criterio de “mes” (mes relativo o mes calendario completo).
     - Autorizar la publicación.
     - Capacitación por rol.
