@@ -4,4 +4,5 @@ module.exports = Object.freeze([
   { codigo: "FRENOS_SUSPENSION", nombre: "Frenos y Suspensión" },
   { codigo: "MECANICA_GENERAL", nombre: "Mecánica General" },
   { codigo: "ALINEACION_BALANCEO", nombre: "Alineación y Balanceo" },
+  { codigo: "OTROS", nombre: "Otros", requiere_detalle: true },
 ]);

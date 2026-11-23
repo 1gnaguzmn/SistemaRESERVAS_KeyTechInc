@@ -1,5 +1,10 @@
 const pool = require("../config/database");
-const { civilDate, invalid, pagination } = require("../lib/validation");
+const {
+  civilDate,
+  dateRange,
+  invalid,
+  pagination,
+} = require("../lib/validation");
 const {
   ACTIVE_STATES,
   STATES,
@@ -11,7 +16,7 @@ const {
   TIMEZONE,
 } = require("../lib/agenda");
 const { AppError } = require("../lib/errors");
-const COLUMNS = `c.id_cita,c.placa,c.inicio,c.fin,c.estado,c.origen,c.creada_por,c.servicio_codigo,c.notas,c.creado_en,
+const COLUMNS = `c.id_cita,c.placa,c.inicio,c.fin,c.estado,c.origen,c.creada_por,c.servicio_codigo,c.servicio_detalle,c.notas,c.creado_en,
   v.id_cliente,v.marca,v.modelo,v.tipo,v.anio,v.color,u.nombre_completo,u.telefono,u.correo,cl.documento_identidad`;
 const FROM =
   "FROM cita c JOIN vehiculo v ON v.placa=c.placa JOIN cliente cl ON cl.id_usuario=v.id_cliente JOIN usuario u ON u.id_usuario=cl.id_usuario";
@@ -22,6 +27,15 @@ function filters(query = {}) {
     const fecha = civilDate(query.fecha);
     parts.push("c.inicio>=? AND c.inicio<?");
     values.push(`${fecha} 00:00:00`, `${nextDay(fecha)} 00:00:00`);
+  }
+  const { desde, hasta } = dateRange(query);
+  if (desde) {
+    parts.push("c.inicio>=?");
+    values.push(`${desde} 00:00:00`);
+  }
+  if (hasta) {
+    parts.push("c.inicio<?");
+    values.push(`${nextDay(hasta)} 00:00:00`);
   }
   if (query.turno && query.turno !== "ALL") {
     if (!["MANANA", "TARDE"].includes(query.turno)) invalid("Turno no válido.");
@@ -54,13 +68,16 @@ function filters(query = {}) {
 async function list(query, connection = pool) {
   const { limit, offset } = pagination(query);
   const { where, values } = filters(query);
+  if (query.orden !== undefined && !["asc", "desc"].includes(query.orden))
+    invalid("orden debe ser asc o desc.");
+  const direction = query.orden === "desc" ? "DESC" : "ASC";
   const [[count]] = await connection.execute(
     `SELECT COUNT(*) AS total ${FROM}${where}`,
     values,
   );
   // LIMIT values are validated integers. Text protocol avoids mysql2/MySQL LIMIT binding incompatibilities.
   const [data] = await connection.query(
-    `SELECT ${COLUMNS} ${FROM}${where} ORDER BY c.inicio,c.id_cita LIMIT ? OFFSET ?`,
+    `SELECT ${COLUMNS} ${FROM}${where} ORDER BY c.inicio ${direction},c.id_cita ${direction} LIMIT ? OFFSET ?`,
     [...values, limit, offset],
   );
   return { data, pagination: { limit, offset, total: count.total } };

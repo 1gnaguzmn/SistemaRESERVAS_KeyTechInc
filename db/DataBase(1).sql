@@ -108,6 +108,7 @@ CREATE TABLE cita (
     origen          ENUM('WEB', 'TELEFONO') NOT NULL DEFAULT 'WEB',
     creada_por      VARCHAR(36) DEFAULT NULL,
     servicio_codigo VARCHAR(50) NOT NULL,
+    servicio_detalle VARCHAR(200) DEFAULT NULL,
     notas           TEXT        DEFAULT NULL,
     creado_en       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id_cita),

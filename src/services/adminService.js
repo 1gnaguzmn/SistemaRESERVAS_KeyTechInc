@@ -12,6 +12,7 @@ const {
 } = require("../lib/agenda");
 const reads = require("./agendaReadService");
 const audit = require("./auditoriaService");
+const { sanitize, csvCell } = require("../lib/auditExport");
 
 function validateDay(day) {
   v.object(day, [
@@ -197,16 +198,91 @@ async function removeClosure(id, user) {
     return { id_bloqueo: id };
   });
 }
+const AUDIT_MAX_DAYS = 30;
+function auditFilters(query = {}) {
+  const range =
+    query.desde === undefined && query.hasta === undefined
+      ? { desde: v.addDays(today(), 1 - AUDIT_MAX_DAYS), hasta: today() }
+      : query;
+  const { desde, hasta } = v.dateRange(range, { maxDays: AUDIT_MAX_DAYS });
+  const parts = ["l.ocurrio_en>=?", "l.ocurrio_en<?"],
+    values = [`${desde} 00:00:00`, `${nextDay(hasta)} 00:00:00`];
+  for (const field of ["accion", "entidad"])
+    if (query[field]) {
+      parts.push(`l.${field}=?`);
+      values.push(v.string(query[field], field, 50));
+    }
+  if (query.q) {
+    const pattern = `%${v.string(query.q, "q", 150).replace(/[\\%_]/g, "\\$&")}%`;
+    parts.push("(u.nombre_completo LIKE ? OR l.id_entidad LIKE ?)");
+    values.push(pattern, pattern);
+  }
+  return { desde, hasta, where: ` WHERE ${parts.join(" AND ")}`, values };
+}
+const AUDIT_FROM =
+  "FROM log_auditoria l JOIN usuario u ON u.id_usuario=l.id_empleado JOIN empleado e ON e.id_usuario=l.id_empleado";
 async function logs(query) {
   const { limit, offset } = v.pagination(query);
+  const { desde, hasta, where, values } = auditFilters(query);
   const [[count]] = await pool.execute(
-    "SELECT COUNT(*) total FROM log_auditoria",
+    `SELECT COUNT(*) total ${AUDIT_FROM}${where}`,
+    values,
   );
   const [data] = await pool.query(
-    `SELECT l.*,u.nombre_completo empleado FROM log_auditoria l JOIN usuario u ON u.id_usuario=l.id_empleado ORDER BY l.ocurrio_en DESC,l.id_log DESC LIMIT ? OFFSET ?`,
-    [limit, offset],
+    `SELECT l.*,u.nombre_completo empleado,e.rol ${AUDIT_FROM}${where} ORDER BY l.ocurrio_en DESC,l.id_log DESC LIMIT ? OFFSET ?`,
+    [...values, limit, offset],
   );
-  return { data, pagination: { limit, offset, total: count.total } };
+  return {
+    data: data.map((row) => ({ ...row, detalle: sanitize(row.detalle) })),
+    pagination: { limit, offset, total: count.total },
+    filtros: { desde, hasta },
+  };
+}
+async function exportLogs(query, user) {
+  v.object(query, ["desde", "hasta", "accion", "entidad", "q"]);
+  const { desde, hasta, where, values } = auditFilters(query);
+  const [rows] = await pool.execute(
+    `SELECT l.id_log,l.ocurrio_en,u.nombre_completo empleado,e.rol,l.accion,l.entidad,l.id_entidad,l.detalle ${AUDIT_FROM}${where} ORDER BY l.ocurrio_en DESC,l.id_log DESC`,
+    values,
+  );
+  const header = [
+    "id_log",
+    "fecha_hora",
+    "usuario",
+    "rol",
+    "accion",
+    "modulo",
+    "id_relacionado",
+    "descripcion",
+  ];
+  const lines = rows.map((r) =>
+    [
+      r.id_log,
+      r.ocurrio_en,
+      r.empleado,
+      r.rol,
+      r.accion,
+      r.entidad,
+      r.id_entidad,
+      r.detalle == null ? "" : JSON.stringify(sanitize(r.detalle)),
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  await audit(pool, user, "EXPORTAR_AUDITORIA", "log_auditoria", "csv", {
+    filtros: {
+      desde,
+      hasta,
+      accion: query.accion,
+      entidad: query.entidad,
+      q: query.q,
+    },
+    registros: rows.length,
+  });
+  return {
+    filename: `auditoria_${desde}_${hasta}.csv`,
+    csv: `\uFEFF${[header.join(","), ...lines].join("\r\n")}\r\n`,
+  };
 }
 module.exports = {
   updateConfig,
@@ -214,5 +290,7 @@ module.exports = {
   createClosure,
   removeClosure,
   logs,
+  exportLogs,
+  AUDIT_MAX_DAYS,
   validateDay,
 };
